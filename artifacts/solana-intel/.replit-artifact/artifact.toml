@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Solana Memecoin Intelligence"
+description = "A real-time Solana memecoin analysis and monitoring platform for discovering launches, tracking liquidity and holder risk, managing watchlists, and explaining token signals with AI."
+version = "1.0.0"
+id = "artifacts/solana-intel"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24939
+
+[services.development]
+run = "pnpm --filter @workspace/solana-intel run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/solana-intel", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/solana-intel/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24939"
+BASE_PATH = "/"

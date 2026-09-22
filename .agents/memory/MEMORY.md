@@ -1,0 +1,1 @@
+- [Graceful market enrichment](graceful-market-enrichment.md) — optional chain/LLM enrichment should improve signals without blocking the core monitoring surface.

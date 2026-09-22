@@ -3,20 +3,22 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API for Solana Memecoin Intelligence
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: market
+  - name: tokens
+  - name: watchlist
+  - name: alerts
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +26,181 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /market/overview:
+    get:
+      operationId: getMarketOverview
+      tags: [market]
+      summary: Get the current Solana memecoin market overview
+      responses:
+        "200":
+          description: Market overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketOverview"
+  /tokens:
+    get:
+      operationId: listTokens
+      tags: [tokens]
+      summary: List tokens with live market and risk signals
+      parameters:
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [momentum, volume, newest, risk]
+            default: momentum
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+      responses:
+        "200":
+          description: Token list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Token"
+  /tokens/{address}:
+    get:
+      operationId: getToken
+      tags: [tokens]
+      summary: Get a token by mint address
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Token detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Token"
+        "404":
+          description: Token not found
+  /tokens/{address}/analysis:
+    get:
+      operationId: getTokenAnalysis
+      tags: [tokens]
+      summary: Get an explainable AI token analysis
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Token analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenAnalysis"
+  /watchlist:
+    get:
+      operationId: listWatchlist
+      tags: [watchlist]
+      summary: List saved tokens
+      responses:
+        "200":
+          description: Saved tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+    post:
+      operationId: addWatchlist
+      tags: [watchlist]
+      summary: Save a token to the watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchlistInput"
+      responses:
+        "201":
+          description: Saved token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+  /watchlist/{address}:
+    delete:
+      operationId: removeWatchlist
+      tags: [watchlist]
+      summary: Remove a token from the watchlist
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List active monitoring rules
+      responses:
+        "200":
+          description: Alert rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlertRule"
+    post:
+      operationId: createAlert
+      tags: [alerts]
+      summary: Create a monitoring rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertRuleInput"
+      responses:
+        "201":
+          description: Alert rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+  /alerts/{id}:
+    delete:
+      operationId: deleteAlert
+      tags: [alerts]
+      summary: Delete a monitoring rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 components:
   schemas:
     HealthStatus:
@@ -31,6 +208,215 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    OverviewMetric:
+      type: object
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+        change:
+          type: number
+        trend:
+          type: string
+          enum: [up, down, flat]
+      required: [label, value, change, trend]
+    TokenRisk:
+      type: object
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        label:
+          type: string
+          enum: [low, guarded, elevated, critical]
+        liquidityLocked:
+          type: boolean
+        mintAuthorityActive:
+          type: boolean
+        freezeAuthorityActive:
+          type: boolean
+        top10HolderPct:
+          type: number
+        notes:
+          type: array
+          items:
+            type: string
+      required: [score, label, liquidityLocked, mintAuthorityActive, freezeAuthorityActive, top10HolderPct, notes]
+    Token:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        price:
+          type: number
+        priceChange24h:
+          type: number
+        volume24h:
+          type: number
+        liquidity:
+          type: number
+        marketCap:
+          type: number
+        txns24h:
+          type: integer
+        ageMinutes:
+          type: integer
+        dex:
+          type: string
+        risk:
+          $ref: "#/components/schemas/TokenRisk"
+        momentum:
+          type: integer
+          minimum: 0
+          maximum: 100
+        isWatched:
+          type: boolean
+        sparkline:
+          type: array
+          items:
+            type: number
+      required: [address, symbol, name, icon, price, priceChange24h, volume24h, liquidity, marketCap, txns24h, ageMinutes, dex, risk, momentum, isWatched, sparkline]
+    ActivityEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [launch, liquidity, whale, risk, social]
+        title:
+          type: string
+        detail:
+          type: string
+        tokenSymbol:
+          type: string
+        severity:
+          type: string
+          enum: [info, positive, warning, critical]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, type, title, detail, tokenSymbol, severity, createdAt]
+    MarketOverview:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverviewMetric"
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/Token"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityEvent"
+        generatedAt:
+          type: string
+          format: date-time
+      required: [metrics, tokens, events, generatedAt]
+    WatchlistItem:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        name:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+      required: [address, symbol, name, addedAt]
+    WatchlistInput:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        name:
+          type: string
+      required: [address, symbol, name]
+    AlertRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        address:
+          type: string
+        symbol:
+          type: string
+        condition:
+          type: string
+          enum: [price_change, liquidity_drop, risk_score]
+        threshold:
+          type: number
+        direction:
+          type: string
+          enum: [above, below]
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, address, symbol, condition, threshold, direction, enabled, createdAt]
+    AlertRuleInput:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        condition:
+          type: string
+          enum: [price_change, liquidity_drop, risk_score]
+        threshold:
+          type: number
+        direction:
+          type: string
+          enum: [above, below]
+      required: [address, symbol, condition, threshold, direction]
+    TokenAnalysis:
+      type: object
+      properties:
+        address:
+          type: string
+        symbol:
+          type: string
+        verdict:
+          type: string
+          enum: [watch, investigate, avoid]
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+        summary:
+          type: string
+        signals:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              status:
+                type: string
+                enum: [positive, neutral, negative]
+              detail:
+                type: string
+            required: [label, status, detail]
+        generatedAt:
+          type: string
+          format: date-time
+      required: [address, symbol, verdict, confidence, summary, signals, generatedAt]
