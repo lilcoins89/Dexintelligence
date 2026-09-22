@@ -159,7 +159,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
   }
 }
 
-async function heliusRisk(address: string): Promise<Partial<TokenRisk>> {
+async function heliusRisk(address: string): Promise<Partial<TokenRisk> & { verified?: boolean }> {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) return {};
   const asset = await fetchJson<{
@@ -174,10 +174,12 @@ async function heliusRisk(address: string): Promise<Partial<TokenRisk>> {
       params: { id: address, displayOptions: { showFungible: true } },
     }),
   });
-  const authorities = asset?.result?.authorities ?? [];
+  if (!asset?.result) return {};
+  const authorities = asset.result.authorities ?? [];
   const mintAuthorityActive = authorities.some((item) => item.scopes?.includes("mint"));
   const freezeAuthorityActive = authorities.some((item) => item.scopes?.includes("freeze"));
   return {
+    verified: true,
     mintAuthorityActive,
     freezeAuthorityActive,
     liquidityLocked: !mintAuthorityActive,
@@ -215,6 +217,7 @@ async function toToken(profile: Profile, pair: Pair | undefined): Promise<Market
   if (liquidity < 100_000) score += 10;
   score = Math.min(100, score);
   const notes: string[] = [];
+  if (helius.verified) notes.push("Chain metadata verified");
   if (liquidityLocked) notes.push("Liquidity posture looks stable");
   else notes.push("Liquidity lock signal is not confirmed");
   if (mintAuthorityActive) notes.push("Mint authority is still active");

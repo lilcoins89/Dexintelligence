@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   ArrowDownRight,
   ArrowUpRight,
   Bell,
@@ -247,6 +248,41 @@ function PageHeading({ kicker, title, detail, action }: { kicker: string; title:
   );
 }
 
+function MintAnalyzer() {
+  const [, setLocation] = useLocation();
+  const [address, setAddress] = useState('');
+  const [error, setError] = useState('');
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const value = address.trim();
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+      setError('Enter a valid Solana mint address.');
+      return;
+    }
+    setError('');
+    setLocation(`/tokens/${encodeURIComponent(value)}`);
+  };
+  return (
+    <section className="obs-card mb-7 overflow-hidden border-accent/40 bg-[linear-gradient(110deg,hsl(72_74%_92%/.55),hsl(44_35%_98%/.35)_42%,hsl(0_0%_100%/.2))]" data-testid="mint-analyzer">
+      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,.8fr)_minmax(420px,1.2fr)] lg:items-center lg:p-6">
+        <div>
+          <div className="eyebrow">Direct analysis</div>
+          <h2 className="mt-1 font-display text-lg font-semibold tracking-[-.03em]">Inspect any token CA</h2>
+          <p className="mt-2 max-w-md text-xs leading-5 text-muted-foreground">Paste a Solana mint address to pull its market context, chain metadata, authority posture, and explainable analysis.</p>
+        </div>
+        <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="mint-address" className="sr-only">Token mint address</label>
+            <input id="mint-address" data-testid="input-mint-address" value={address} onChange={(event) => { setAddress(event.target.value); if (error) setError(''); }} placeholder="Paste token mint address" spellCheck={false} autoCapitalize="none" className="h-11 w-full rounded-md border border-border bg-background/80 px-3 font-mono text-xs outline-none transition placeholder:text-muted-foreground/65 focus:border-accent focus:ring-2 focus:ring-accent/20" />
+            {error && <p className="mt-1.5 text-[11px] text-destructive" data-testid="mint-address-error">{error}</p>}
+          </div>
+          <button type="submit" data-testid="button-analyze-mint" className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground transition hover:opacity-90 sm:self-start"><FileSearch className="h-3.5 w-3.5" />Analyze CA<ArrowRight className="h-3.5 w-3.5" /></button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 function MetricStrip({ metrics }: { metrics?: Array<{ label: string; value: string; change: number; trend: string }> }) {
   if (!metrics?.length) return <EmptyPanel title="No market metrics" detail="The observer is waiting for a fresh market snapshot." />;
   return (
@@ -325,6 +361,7 @@ function Overview() {
   return (
     <div data-testid="page-overview">
       <PageHeading kicker="01 / situational awareness" title="Market overview" detail="A live read on the Solana memecoin surface. Start broad, then follow the signal." action={<button onClick={() => client.invalidateQueries({ queryKey: getGetMarketOverviewQueryKey() })} className="inline-flex items-center gap-2 self-start rounded-md border border-border bg-card px-3 py-2 text-xs font-medium transition hover:border-accent hover:bg-accent/20 lg:self-auto" data-testid="button-refresh-overview"><RefreshCw className="h-3.5 w-3.5" />Refresh snapshot</button>} />
+      <MintAnalyzer />
       <div className="mb-4 flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground"><span className="flex items-center gap-1.5"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-destructive' : 'bg-[hsl(72_70%_40%)]'}`} />{health.isError ? 'degraded connection' : 'observer online'}</span><span className="text-border">/</span><span>last indexed {formatAgo(data?.generatedAt)}</span></div>
       {market.isLoading ? <LoadingPanel rows={2} /> : market.isError ? <ErrorPanel onRetry={() => market.refetch()} /> : <><MetricStrip metrics={data?.metrics} /><div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.8fr)]"><div className="obs-card overflow-hidden"><div className="flex items-end justify-between border-b border-card-border px-5 py-4"><div><div className="eyebrow">Priority surface</div><h2 className="mt-1 text-sm font-semibold">Momentum leaders</h2></div><Link href="/tokens" className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground transition hover:text-foreground" data-testid="link-view-scanner">Open scanner <ChevronRight className="h-3 w-3" /></Link></div>{data?.tokens?.length ? <TokenTable tokens={data.tokens.slice(0, 7)} /> : <EmptyPanel icon={LineChart} title="No tokens detected" detail="The scanner will populate as the market indexer reports." />}</div><ActivityFeed events={data?.events} /></div></>}
     </div>
