@@ -23,7 +23,7 @@ import { and, eq, getAlerts, getMarketTokens, getToken, getWatchlist, markWatche
 const router: IRouter = Router();
 
 router.get("/market/overview", async (req, res) => {
-  const tokens = await markWatched((await getMarketTokens()).slice(0, 8));
+  const tokens = await markWatched((await getMarketTokens()).slice(0, 20));
   const sorted = [...tokens].sort((a, b) => b.momentum - a.momentum);
   const totalVolume = tokens.reduce((sum, token) => sum + token.volume24h, 0);
   const averageChange = tokens.length ? tokens.reduce((sum, token) => sum + token.priceChange24h, 0) / tokens.length : 0;

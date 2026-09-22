@@ -223,7 +223,7 @@ sort?: ListTokensSort;
 search?: string | null;
 /**
  * @minimum 1
- * @maximum 50
+ * @maximum 20
  */
 limit?: number;
 };

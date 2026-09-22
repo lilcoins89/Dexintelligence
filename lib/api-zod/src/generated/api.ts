@@ -77,8 +77,8 @@ export const GetMarketOverviewResponse = zod.object({
  * @summary List tokens with live market and risk signals
  */
 export const listTokensQuerySortDefault = `momentum`;
-export const listTokensQueryLimitDefault = 12;
-export const listTokensQueryLimitMax = 50;
+export const listTokensQueryLimitDefault = 20;
+export const listTokensQueryLimitMax = 20;
 
 
 

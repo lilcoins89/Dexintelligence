@@ -62,8 +62,8 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 50
-            default: 12
+            maximum: 20
+            default: 20
       responses:
         "200":
           description: Token list

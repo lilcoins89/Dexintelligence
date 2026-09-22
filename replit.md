@@ -30,15 +30,15 @@ Solana Memecoin Intelligence is a live market analysis and monitoring dashboard 
 
 ## Architecture decisions
 
-- Live market data is cached briefly in the API process to keep the dashboard responsive while avoiding repeated upstream calls during navigation.
-- Chain and model enrichment are optional server-side capabilities; the deterministic risk engine remains available when those credentials are not configured.
+- Live market data is refreshed every 30 seconds and cached briefly in the API process to keep the dashboard responsive while avoiding repeated upstream calls during navigation.
+- Chain enrichment uses asset metadata plus token-account concentration data with a five-minute per-mint cache; the deterministic risk engine remains available when credentials are not configured.
 - Watchlist and alert rules are persisted in PostgreSQL so they survive reloads and server restarts.
 - The UI uses generated OpenAPI hooks instead of hand-written fetch contracts.
 
 ## Product
 
-- Market overview with tracked volume, new-pair flow, risk alerts, active wallet activity, and a recent event stream
-- Searchable token scanner with momentum, volume, liquidity, sparkline, and contract-risk signals
+- Market overview with up to 20 live Solana memecoins, tracked volume, new-pair flow, risk alerts, active wallet activity, and a recent event stream
+- Searchable token scanner with up to 20 auto-refreshing results, momentum, volume, liquidity, sparkline, and contract-risk signals
 - Token detail pages with explainable analysis and signal-level breakdowns
 - Persistent watchlist and alert-rule management
 

@@ -54,6 +54,8 @@ export type MarketToken = {
 
 const cache = new Map<string, { expiresAt: number; value: MarketToken[] }>();
 const CACHE_MS = 30_000;
+const heliusCache = new Map<string, { expiresAt: number; value: Partial<TokenRisk> & { verified?: boolean; holderDataVerified?: boolean } }>();
+const HELIUS_CACHE_MS = 5 * 60_000;
 
 const fallbackTokens: MarketToken[] = [
   {
@@ -159,31 +161,69 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
   }
 }
 
-async function heliusRisk(address: string): Promise<Partial<TokenRisk> & { verified?: boolean }> {
+async function heliusRisk(address: string): Promise<Partial<TokenRisk> & { verified?: boolean; holderDataVerified?: boolean }> {
   const apiKey = process.env.HELIUS_API_KEY;
   if (!apiKey) return {};
-  const asset = await fetchJson<{
-    result?: { authorities?: Array<{ scopes?: string[] }>; ownership?: { frozen?: boolean } };
-  }>(`https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(apiKey)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: "solana-intel",
-      method: "getAsset",
-      params: { id: address, displayOptions: { showFungible: true } },
+  const cached = heliusCache.get(address);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const endpoint = `https://mainnet.helius-rpc.com/?api-key=${encodeURIComponent(apiKey)}`;
+  const [asset, accounts] = await Promise.all([
+    fetchJson<{
+      result?: {
+        authorities?: Array<{ scopes?: string[] }>;
+        ownership?: { frozen?: boolean };
+      };
+    }>(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "solana-intel-asset",
+        method: "getAsset",
+        params: { id: address, displayOptions: { showFungible: true } },
+      }),
     }),
-  });
-  if (!asset?.result) return {};
-  const authorities = asset.result.authorities ?? [];
+    fetchJson<{
+      result?: {
+        token_accounts?: Array<{ amount?: number | string; owner?: string }>;
+      };
+    }>(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "solana-intel-holders",
+        method: "getTokenAccounts",
+        params: {
+          mint: address,
+          limit: 20,
+          options: { showZeroBalance: false },
+        },
+      }),
+    }),
+  ]);
+  if (!asset?.result && !accounts?.result) return {};
+  const authorities = asset?.result?.authorities ?? [];
   const mintAuthorityActive = authorities.some((item) => item.scopes?.includes("mint"));
   const freezeAuthorityActive = authorities.some((item) => item.scopes?.includes("freeze"));
-  return {
-    verified: true,
+  const balances = (accounts?.result?.token_accounts ?? [])
+    .map((account) => num(account.amount))
+    .filter((amount) => amount > 0)
+    .sort((a, b) => b - a);
+  const totalBalance = balances.reduce((sum, amount) => sum + amount, 0);
+  const top10HolderPct = totalBalance > 0
+    ? Number(((balances.slice(0, 10).reduce((sum, amount) => sum + amount, 0) / totalBalance) * 100).toFixed(1))
+    : undefined;
+  const value = {
+    verified: Boolean(asset?.result),
+    holderDataVerified: Boolean(top10HolderPct),
     mintAuthorityActive,
     freezeAuthorityActive,
     liquidityLocked: !mintAuthorityActive,
+    ...(top10HolderPct === undefined ? {} : { top10HolderPct }),
   };
+  heliusCache.set(address, { expiresAt: Date.now() + HELIUS_CACHE_MS, value });
+  return value;
 }
 
 function riskLabel(score: number): TokenRisk["label"] {
@@ -204,8 +244,8 @@ async function toToken(profile: Profile, pair: Pair | undefined): Promise<Market
   const marketCap = num(pair?.marketCap ?? pair?.fdv, liquidity * (2.1 + (seed % 150) / 100));
   const buys = num(pair?.txns?.h24?.buys, 100 + (seed % 4_000));
   const sells = num(pair?.txns?.h24?.sells, 80 + (seed % 2_000));
-  const top10HolderPct = 12 + (seed % 390) / 10;
   const helius = await heliusRisk(address);
+  const top10HolderPct = helius.top10HolderPct ?? 12 + (seed % 390) / 10;
   const mintAuthorityActive = helius.mintAuthorityActive ?? seed % 5 === 0;
   const freezeAuthorityActive = helius.freezeAuthorityActive ?? seed % 11 === 0;
   const liquidityLocked = helius.liquidityLocked ?? seed % 3 !== 0;
@@ -218,6 +258,7 @@ async function toToken(profile: Profile, pair: Pair | undefined): Promise<Market
   score = Math.min(100, score);
   const notes: string[] = [];
   if (helius.verified) notes.push("Chain metadata verified");
+  if (helius.holderDataVerified) notes.push("Holder concentration measured from chain accounts");
   if (liquidityLocked) notes.push("Liquidity posture looks stable");
   else notes.push("Liquidity lock signal is not confirmed");
   if (mintAuthorityActive) notes.push("Mint authority is still active");
@@ -264,7 +305,7 @@ async function liveTokens(): Promise<MarketToken[]> {
   const profiles = [...(Array.isArray(latest) ? latest : latest ? [latest] : []), ...(Array.isArray(recent) ? recent : recent ? [recent] : [])]
     .filter((profile) => profile.chainId === "solana" && profile.tokenAddress)
     .filter((profile, index, list) => list.findIndex((candidate) => candidate.tokenAddress === profile.tokenAddress) === index)
-    .slice(0, 16);
+    .slice(0, 20);
   const tokens = await Promise.all(
     profiles.map(async (profile) => {
       const pairs = await fetchJson<{ pairs?: Pair[] }>(
@@ -283,7 +324,7 @@ export async function getMarketTokens(): Promise<MarketToken[]> {
   const cached = cache.get("market");
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   const tokens = await liveTokens();
-  const result = tokens.length >= 3 ? tokens : fallbackTokens;
+  const result = tokens.length >= 3 ? tokens.slice(0, 20) : fallbackTokens;
   cache.set("market", { expiresAt: Date.now() + CACHE_MS, value: result });
   return result;
 }
