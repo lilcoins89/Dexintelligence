@@ -353,6 +353,25 @@ function ActivityFeed({ events }: { events?: any[] }) {
   );
 }
 
+function ProviderHealth({ degraded }: { degraded: boolean }) {
+  const providers = [
+    { name: 'Market indexer', detail: 'DexScreener token profiles', state: degraded ? 'degraded' : 'healthy' },
+    { name: 'Chain metadata', detail: 'Helius enrichment · optional', state: 'standby' },
+    { name: 'Neon persistence', detail: 'watchlists and alert rules', state: 'healthy' },
+  ];
+  return (
+    <section className="obs-card mb-7 overflow-hidden" aria-label="Provider health">
+      <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
+        <div><div className="eyebrow">02 / observability</div><h2 className="mt-1 text-sm font-semibold">Provider health</h2></div>
+        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${degraded ? 'bg-[hsl(39_80%_55%)]' : 'bg-[hsl(72_70%_40%)]'}`} />{degraded ? 'degraded' : 'nominal'}</span>
+      </div>
+      <div className="grid gap-px bg-border sm:grid-cols-3">
+        {providers.map((provider) => <div className="bg-card px-5 py-4" key={provider.name}><div className="flex items-center justify-between gap-3"><span className="text-xs font-medium">{provider.name}</span><span className={`font-mono text-[9px] uppercase tracking-[.12em] ${provider.state === 'healthy' ? 'text-[hsl(154_54%_40%)]' : provider.state === 'degraded' ? 'text-[hsl(39_80%_55%)]' : 'text-muted-foreground'}`}>{provider.state}</span></div><p className="mt-2 text-[11px] leading-5 text-muted-foreground">{provider.detail}</p></div>)}
+      </div>
+    </section>
+  );
+}
+
 function Overview() {
   const market = useGetMarketOverview({ query: { queryKey: getGetMarketOverviewQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true } });
   const health = useHealthCheck();
@@ -362,6 +381,7 @@ function Overview() {
     <div data-testid="page-overview">
       <PageHeading kicker="01 / situational awareness" title="Market overview" detail="A live read on the Solana memecoin surface. Start broad, then follow the signal." action={<button onClick={() => client.invalidateQueries({ queryKey: getGetMarketOverviewQueryKey() })} className="inline-flex items-center gap-2 self-start rounded-md border border-border bg-card px-3 py-2 text-xs font-medium transition hover:border-accent hover:bg-accent/20 lg:self-auto" data-testid="button-refresh-overview"><RefreshCw className="h-3.5 w-3.5" />Refresh snapshot</button>} />
       <MintAnalyzer />
+      <ProviderHealth degraded={health.isError || market.isError} />
       <div className="mb-4 flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground"><span className="flex items-center gap-1.5"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-destructive' : 'bg-[hsl(72_70%_40%)]'}`} />{health.isError ? 'degraded connection' : 'observer online'}</span><span className="text-border">/</span><span>last indexed {formatAgo(data?.generatedAt)}</span></div>
       {market.isLoading ? <LoadingPanel rows={2} /> : market.isError ? <ErrorPanel onRetry={() => market.refetch()} /> : <><MetricStrip metrics={data?.metrics} /><div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.8fr)]"><div className="obs-card overflow-hidden"><div className="flex items-end justify-between border-b border-card-border px-5 py-4"><div><div className="eyebrow">Priority surface</div><h2 className="mt-1 text-sm font-semibold">Top 20 Solana memecoins</h2></div><Link href="/tokens" className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[.12em] text-muted-foreground transition hover:text-foreground" data-testid="link-view-scanner">Open scanner <ChevronRight className="h-3 w-3" /></Link></div>{data?.tokens?.length ? <TokenTable tokens={data.tokens.slice(0, 20)} /> : <EmptyPanel icon={LineChart} title="No tokens detected" detail="The scanner will populate as the market indexer reports." />}</div><ActivityFeed events={data?.events} /></div></>}
     </div>

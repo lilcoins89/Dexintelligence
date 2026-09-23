@@ -23,7 +23,8 @@ import { and, eq, getAlerts, getMarketTokens, getToken, getWatchlist, markWatche
 const router: IRouter = Router();
 
 router.get("/market/overview", async (req, res) => {
-  const tokens = await markWatched((await getMarketTokens()).slice(0, 20));
+  const observed = await markWatched(await getMarketTokens());
+  const tokens = observed.filter(isQualifiedToken).slice(0, 20);
   const sorted = [...tokens].sort((a, b) => b.momentum - a.momentum);
   const totalVolume = tokens.reduce((sum, token) => sum + token.volume24h, 0);
   const averageChange = tokens.length ? tokens.reduce((sum, token) => sum + token.priceChange24h, 0) / tokens.length : 0;
@@ -55,7 +56,7 @@ router.get("/tokens", async (req, res) => {
     search: req.query.search || null,
     limit: req.query.limit ? Number(req.query.limit) : undefined,
   });
-  let tokens = await markWatched(await getMarketTokens());
+  let tokens = (await markWatched(await getMarketTokens())).filter(isQualifiedToken);
   if (query.search) {
     const search = query.search.toLowerCase();
     tokens = tokens.filter((token) => `${token.symbol} ${token.name} ${token.address}`.toLowerCase().includes(search));
@@ -134,6 +135,10 @@ router.delete("/alerts/:id", async (req, res) => {
   await db.delete(alertsTable).where(eq(alertsTable.id, id));
   return res.status(204).send(RemoveWatchlistResponse.parse(undefined));
 });
+
+function isQualifiedToken(token: { liquidity: number; volume24h: number; risk: { score: number } }) {
+  return token.liquidity >= 100_000 && token.volume24h >= 150_000 && token.risk.score < 85;
+}
 
 function formatCompact(value: number) {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
